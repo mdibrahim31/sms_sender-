@@ -16,18 +16,23 @@ class MessagesActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_messages)
+        try {
+            setContentView(R.layout.activity_messages)
 
-        val tvTitle = findViewById<TextView>(R.id.tvMessagesTitle)
-        val recyclerView = findViewById<RecyclerView>(R.id.recyclerViewMessages)
+            val tvTitle = findViewById<TextView>(R.id.tvMessagesTitle)
+            val recyclerView = findViewById<RecyclerView>(R.id.recyclerViewMessages)
 
-        val group = SmsRepository.selectedGroup
-        val sender = group?.sender ?: "Unknown"
-        val messages = group?.messages ?: emptyList()
+            val group = SmsRepository.selectedGroup
+            val sender = group?.sender ?: "Unknown"
+            val messages = group?.messages ?: emptyList()
 
-        tvTitle.text = "Messages from $sender (${messages.size})"
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        recyclerView.adapter = MessagesAdapter(messages)
+            tvTitle.text = "Messages from $sender (${messages.size})"
+            recyclerView.layoutManager = LinearLayoutManager(this)
+            recyclerView.adapter = MessagesAdapter(messages)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            finish()
+        }
     }
 
     class MessagesAdapter(private val messages: List<SmsMessage>) :
@@ -46,14 +51,23 @@ class MessagesActivity : AppCompatActivity() {
         }
 
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-            val msg = messages[position]
-            holder.tvMsgBody.text = msg.body
+            try {
+                val msg = messages[position]
+                holder.tvMsgBody.text = msg.body ?: ""
 
-            val txnId = SmsParser.extractTxnId(msg.body)
-            holder.tvTxnId.text = if (txnId != null) "TxnId: $txnId" else "TxnId: N/A"
+                val txnId = try {
+                    SmsParser.extractTxnId(msg.body ?: "")
+                } catch (e: Exception) {
+                    null
+                }
+                holder.tvTxnId.text = if (!txnId.isNullOrEmpty()) "TxnId: $txnId" else "TxnId: N/A"
 
-            val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
-            holder.tvMsgDate.text = sdf.format(Date(msg.date))
+                val dateVal = msg.date
+                val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
+                holder.tvMsgDate.text = sdf.format(Date(dateVal))
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
         override fun getItemCount(): Int = messages.size
