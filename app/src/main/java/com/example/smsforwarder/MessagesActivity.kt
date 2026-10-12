@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -19,16 +20,21 @@ class MessagesActivity : AppCompatActivity() {
         try {
             setContentView(R.layout.activity_messages)
 
+            val btnBack = findViewById<ImageView>(R.id.btnBack)
             val tvTitle = findViewById<TextView>(R.id.tvMessagesTitle)
             val recyclerView = findViewById<RecyclerView>(R.id.recyclerViewMessages)
+
+            btnBack?.setOnClickListener {
+                finish()
+            }
 
             val group = SmsRepository.selectedGroup
             val sender = group?.sender ?: "Unknown"
             val messages = group?.messages ?: emptyList()
 
-            tvTitle.text = "Messages from $sender (${messages.size})"
-            recyclerView.layoutManager = LinearLayoutManager(this)
-            recyclerView.adapter = MessagesAdapter(messages)
+            tvTitle?.text = "Messages from $sender (${messages.size})"
+            recyclerView?.layoutManager = LinearLayoutManager(this)
+            recyclerView?.adapter = MessagesAdapter(messages)
         } catch (e: Exception) {
             e.printStackTrace()
             finish()
@@ -52,7 +58,7 @@ class MessagesActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             try {
-                val msg = messages[position]
+                val msg = messages.getOrNull(position) ?: return
                 holder.tvMsgBody.text = msg.body ?: ""
 
                 val txnId = try {

@@ -72,27 +72,25 @@
 
             <Button
                 android:id="@+id/btnViewMessages"
-                style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:layout_weight="1"
+                android:background="@drawable/bg_button_outline"
                 android:text="VIEW MESSAGES"
                 android:textSize="12sp"
                 android:textColor="@color/text_primary"
-                android:layout_marginEnd="8dp"
-                android:minHeight="40dp" />
+                android:layout_marginEnd="8dp" />
 
             <Button
                 android:id="@+id/btnSendToDb"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:layout_weight="1"
                 android:text="SEND ALL TO DB"
                 android:textSize="12sp"
                 android:backgroundTint="@color/primary_green"
                 android:textColor="@android:color/white"
-                android:layout_marginStart="8dp"
-                android:minHeight="40dp" />
+                android:layout_marginStart="8dp" />
 
         </LinearLayout>
 

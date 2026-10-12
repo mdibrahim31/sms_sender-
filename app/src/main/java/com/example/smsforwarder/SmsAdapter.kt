@@ -56,7 +56,7 @@ class SmsAdapter(
 
             holder.btnViewMessages.setOnClickListener {
                 try {
-                    val adapterPos = holder.bindingAdapterPosition
+                    val adapterPos = holder.adapterPosition
                     if (adapterPos != RecyclerView.NO_POSITION) {
                         val currentGroup = senderGroups.getOrNull(adapterPos)
                         if (currentGroup != null) {
@@ -70,7 +70,7 @@ class SmsAdapter(
 
             holder.btnSendToDb.setOnClickListener {
                 try {
-                    val adapterPos = holder.bindingAdapterPosition
+                    val adapterPos = holder.adapterPosition
                     if (adapterPos != RecyclerView.NO_POSITION) {
                         val currentGroup = senderGroups.getOrNull(adapterPos)
                         if (currentGroup != null) {
