@@ -55,9 +55,8 @@ class MainActivity : AppCompatActivity() {
             displayedSenderGroups,
             onToggleChanged = { _, _ -> updateActiveCount() },
             onViewMessages = { group ->
-                val intent = Intent(this, MessagesActivity::class.java).apply {
-                    putExtra(MessagesActivity.EXTRA_SENDER, group.sender)
-                }
+                SmsRepository.selectedGroup = group
+                val intent = Intent(this, MessagesActivity::class.java)
                 startActivity(intent)
             },
             onSendToDb = { group -> sendGroupToSupabase(group) }
