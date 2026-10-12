@@ -16,9 +16,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
@@ -28,6 +25,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvActiveForwarding: TextView
     private lateinit var btnSendSelected: Button
     private lateinit var btnReload: Button
+    private lateinit var btnRecheckSync: Button
     private lateinit var recyclerViewSenders: RecyclerView
 
     private lateinit var smsAdapter: SmsAdapter
@@ -48,12 +46,16 @@ class MainActivity : AppCompatActivity() {
         tvActiveForwarding = findViewById(R.id.tvActiveForwarding)
         btnSendSelected = findViewById(R.id.btnSendSelected)
         btnReload = findViewById(R.id.btnReload)
+        btnRecheckSync = findViewById(R.id.btnRecheckSync)
         recyclerViewSenders = findViewById(R.id.recyclerViewSenders)
 
         recyclerViewSenders.layoutManager = LinearLayoutManager(this)
         smsAdapter = SmsAdapter(
             displayedSenderGroups,
-            onToggleChanged = { _, _ -> updateActiveCount() },
+            onToggleChanged = { group, isChecked ->
+                ForwardingPreferences.setSenderSelected(this, group.sender, isChecked)
+                updateActiveCount()
+            },
             onViewMessages = { group ->
                 SmsRepository.selectedGroup = group
                 val intent = Intent(this, MessagesActivity::class.java)
@@ -65,6 +67,7 @@ class MainActivity : AppCompatActivity() {
 
         btnReload.setOnClickListener { loadInboxSms() }
         btnSendSelected.setOnClickListener { sendSelectedToSupabase() }
+        btnRecheckSync.setOnClickListener { recheckAndSyncMissedMessages() }
 
         etSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -123,7 +126,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             for ((sender, messages) in map) {
-                allSenderGroups.add(SenderGroup(sender, messages, false))
+                val isSelected = ForwardingPreferences.isSenderSelected(this, sender)
+                allSenderGroups.add(SenderGroup(sender, messages, isSelected))
             }
         }
 
@@ -154,60 +158,96 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendGroupToSupabase(group: SenderGroup) {
-        val urlStr = BuildConfig.SUPABASE_URL
-        val apiKey = BuildConfig.SUPABASE_API_KEY
-        val userId = BuildConfig.VENDOR_USER_ID
-
-        if (urlStr.isEmpty() || apiKey.isEmpty()) {
-            Toast.makeText(this, "Supabase URL/Key not configured in GitHub Secrets!", Toast.LENGTH_LONG).show()
+        if (!SupabaseService.isConfigured()) {
+            Toast.makeText(this, "Supabase credentials missing in build configuration", Toast.LENGTH_LONG).show()
             return
         }
 
-        Toast.makeText(this, "Pushing ${group.messages.size} messages to sms_forwarder...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Pushing ${group.messages.size} messages from ${group.sender}...", Toast.LENGTH_SHORT).show()
 
         thread {
+            var count = 0
             for (msg in group.messages) {
-                try {
-                    val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-                        requestMethod = "POST"
-                        setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-                        setRequestProperty("apikey", apiKey)
-                        setRequestProperty("Authorization", "Bearer $apiKey")
-                        setRequestProperty("Prefer", "return=minimal")
-                        doOutput = true
-                        connectTimeout = 10000
-                    }
-                    val txnId = SmsParser.extractTxnId(msg.body) ?: ""
-                    val escapedBody = msg.body.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "")
-                    val json = """
-                        {
-                            "user_id": "$userId",
-                            "txn_id": "$txnId",
-                            "phone": "${msg.sender}",
-                            "full_msg": "$escapedBody"
-                        }
-                    """.trimIndent()
-                    OutputStreamWriter(conn.outputStream, "UTF-8").use { it.write(json); it.flush() }
-                    conn.responseCode
-                    conn.disconnect()
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                if (SupabaseService.sendSms(msg.sender, msg.body)) {
+                    count++
                 }
             }
             runOnUiThread {
-                Toast.makeText(this, "Pushed messages for ${group.sender} successfully!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Inserted $count of ${group.messages.size} messages into sms_forwarder!", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     private fun sendSelectedToSupabase() {
+        if (!SupabaseService.isConfigured()) {
+            Toast.makeText(this, "Supabase credentials missing in build configuration", Toast.LENGTH_LONG).show()
+            return
+        }
+
         val selected = allSenderGroups.filter { it.isEnabled }
         if (selected.isEmpty()) {
             Toast.makeText(this, "Select services using toggles first.", Toast.LENGTH_SHORT).show()
             return
         }
-        for (group in selected) {
-            sendGroupToSupabase(group)
+
+        Toast.makeText(this, "Forwarding messages from ${selected.size} active services...", Toast.LENGTH_SHORT).show()
+        thread {
+            var totalCount = 0
+            for (group in selected) {
+                for (msg in group.messages) {
+                    if (SupabaseService.sendSms(msg.sender, msg.body)) {
+                        totalCount++
+                    }
+                }
+            }
+            runOnUiThread {
+                Toast.makeText(this, "Forwarded $totalCount messages from ${selected.size} services!", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /**
+     * Recheck whether any SMS was missed while offline or during high volume.
+     * Compares local inbox with what's in Supabase and forwards any missing messages.
+     */
+    private fun recheckAndSyncMissedMessages() {
+        if (!SupabaseService.isConfigured()) {
+            Toast.makeText(this, "Supabase credentials missing in build configuration", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val selectedSenders = allSenderGroups.filter { it.isEnabled }
+        if (selectedSenders.isEmpty()) {
+            Toast.makeText(this, "No senders selected for forwarding. Please activate at least one.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        Toast.makeText(this, "Rechecking Supabase records for missed messages...", Toast.LENGTH_SHORT).show()
+
+        thread {
+            var forwardedMissed = 0
+            for (group in selectedSenders) {
+                // Fetch already forwarded messages from Supabase for this sender
+                val existingInDb = SupabaseService.fetchExistingFullMessages(group.sender)
+
+                for (msg in group.messages) {
+                    // If not already in DB, forward it now
+                    if (!existingInDb.contains(msg.body)) {
+                        val success = SupabaseService.sendSms(msg.sender, msg.body)
+                        if (success) {
+                            forwardedMissed++
+                        }
+                    }
+                }
+            }
+
+            runOnUiThread {
+                if (forwardedMissed > 0) {
+                    Toast.makeText(this, "Recheck complete: Forwarded $forwardedMissed previously missed messages!", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this, "All messages from selected senders are already synced in database!", Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 }

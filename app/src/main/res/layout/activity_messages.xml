@@ -6,7 +6,7 @@
     android:background="@color/background_light"
     android:padding="16dp">
 
-    <!-- Header with Back Button and Title -->
+    <!-- Header with Back Button, Title and Push All Button -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -22,7 +22,7 @@
             android:padding="6dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Back"
-            android:layout_marginEnd="12dp" />
+            android:layout_marginEnd="8dp" />
 
         <TextView
             android:id="@+id/tvMessagesTitle"
@@ -30,9 +30,19 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Messages for Sender"
-            android:textSize="20sp"
+            android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="@color/text_primary" />
+
+        <Button
+            android:id="@+id/btnPushAllMessages"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:backgroundTint="@color/primary_green"
+            android:text="PUSH ALL TO DB"
+            android:textSize="11sp"
+            android:textColor="@android:color/white"
+            android:paddingHorizontal="12dp" />
 
     </LinearLayout>
 

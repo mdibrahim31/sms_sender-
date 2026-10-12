@@ -3,87 +3,70 @@ package com.example.smsforwarder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
 import android.provider.Telephony
 import android.util.Log
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.concurrent.thread
 
 class SmsReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "SmsReceiver"
-
-        fun forwardMessage(context: Context, sender: String, messageBody: String) {
-            val supabaseUrl = BuildConfig.SUPABASE_URL
-            val apiKey = BuildConfig.SUPABASE_API_KEY
-            val userId = BuildConfig.VENDOR_USER_ID
-
-            if (supabaseUrl.isEmpty() || apiKey.isEmpty()) {
-                Log.w(TAG, "Supabase URL or API Key is not configured via GitHub Secrets.")
-                return
-            }
-
-            thread {
-                var connection: HttpURLConnection? = null
-                try {
-                    val url = URL(supabaseUrl)
-                    connection = (url.openConnection() as HttpURLConnection).apply {
-                        requestMethod = "POST"
-                        setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-                        setRequestProperty("apikey", apiKey)
-                        setRequestProperty("Authorization", "Bearer $apiKey")
-                        setRequestProperty("Prefer", "return=minimal")
-                        doOutput = true
-                        connectTimeout = 15000
-                        readTimeout = 15000
-                    }
-
-                    val txnId = SmsParser.extractTxnId(messageBody) ?: ""
-                    val escapedBody = messageBody.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "")
-                    val jsonInputString = """
-                        {
-                            "user_id": "$userId",
-                            "txn_id": "$txnId",
-                            "phone": "$sender",
-                            "full_msg": "$escapedBody"
-                        }
-                    """.trimIndent()
-
-                    OutputStreamWriter(connection.outputStream, "UTF-8").use { writer ->
-                        writer.write(jsonInputString)
-                        writer.flush()
-                    }
-
-                    val responseCode = connection.responseCode
-                    if (responseCode in 200..299) {
-                        Log.i(TAG, "Successfully forwarded SMS to Supabase sms_forwarder. Response code: $responseCode")
-                    } else {
-                        Log.e(TAG, "Failed to forward SMS. Response code: $responseCode")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error forwarding SMS to Supabase", e)
-                } finally {
-                    connection?.disconnect()
-                }
-            }
-        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
+        val action = intent.action
+        if (action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
-            if (messages != null && messages.isNotEmpty()) {
+            if (!messages.isNullOrEmpty()) {
                 val sender = messages[0].displayOriginatingAddress ?: "Unknown"
-                val fullBody = StringBuilder()
+                val bodyBuilder = StringBuilder()
                 for (sms in messages) {
-                    fullBody.append(sms.messageBody ?: "")
+                    bodyBuilder.append(sms.messageBody ?: "")
                 }
-                val messageBody = fullBody.toString()
+                val fullBody = bodyBuilder.toString()
 
-                forwardMessage(context, sender, messageBody)
+                // Check if this sender is one of the chosen/active senders
+                val isSelected = ForwardingPreferences.isSenderSelected(context, sender)
+                if (!isSelected) {
+                    Log.d(TAG, "Sender $sender is not selected for forwarding. Skipping.")
+                    return
+                }
+
+                // Acquire a temporary WakeLock to guarantee execution even if device is in doze mode
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                val wakeLock = powerManager?.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "SMSForwarder:WakeLock"
+                )?.apply {
+                    setReferenceCounted(false)
+                    acquire(20000) // 20 seconds maximum
+                }
+
+                val pendingResult = goAsync()
+                thread {
+                    try {
+                        Log.i(TAG, "Incoming SMS from chosen sender $sender. Forwarding to Supabase...")
+                        val success = SupabaseService.sendSms(sender, fullBody)
+                        if (success) {
+                            Log.i(TAG, "Successfully forwarded real-time SMS from $sender")
+                        } else {
+                            Log.e(TAG, "Failed forwarding real-time SMS from $sender")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Exception during real-time SMS forwarding", e)
+                    } finally {
+                        try {
+                            wakeLock?.release()
+                        } catch (e: Exception) {
+                            // Ignored
+                        }
+                        pendingResult.finish()
+                    }
+                }
             }
+        } else if (action == Intent.ACTION_BOOT_COMPLETED) {
+            Log.i(TAG, "Device rebooted. SMS Forwarder receiver is ready.")
         }
     }
 }
