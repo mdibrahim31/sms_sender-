@@ -16,16 +16,12 @@ class SmsReceiver : BroadcastReceiver() {
         private const val TAG = "SmsReceiver"
 
         fun forwardMessage(context: Context, sender: String, messageBody: String) {
-            val sharedPrefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
-            val supabaseUrl = sharedPrefs.getString(MainActivity.KEY_SUPABASE_URL, "")?.takeIf { it.isNotBlank() }
-                ?: BuildConfig.SUPABASE_URL
-            val apiKey = sharedPrefs.getString(MainActivity.KEY_API_KEY, "")?.takeIf { it.isNotBlank() }
-                ?: BuildConfig.SUPABASE_API_KEY
-            val userId = sharedPrefs.getString(MainActivity.KEY_VENDOR_USER_ID, "")?.takeIf { it.isNotBlank() }
-                ?: BuildConfig.VENDOR_USER_ID
+            val supabaseUrl = BuildConfig.SUPABASE_URL
+            val apiKey = BuildConfig.SUPABASE_API_KEY
+            val userId = BuildConfig.VENDOR_USER_ID
 
             if (supabaseUrl.isEmpty() || apiKey.isEmpty()) {
-                Log.w(TAG, "Supabase URL or API Key is not configured.")
+                Log.w(TAG, "Supabase URL or API Key is not configured via GitHub Secrets.")
                 return
             }
 
