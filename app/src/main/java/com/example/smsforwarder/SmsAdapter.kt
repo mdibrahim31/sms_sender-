@@ -31,30 +31,58 @@ class SmsAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val group = senderGroups[position]
+        try {
+            val group = senderGroups.getOrNull(position) ?: return
 
-        holder.tvSender.text = group.sender
-        val count = group.messages.size
-        holder.tvMsgCountBadge.text = "$count msg${if (count > 1) "s" else ""}"
+            holder.tvSender.text = group.sender ?: "Unknown"
+            val count = group.messages.size
+            holder.tvMsgCountBadge.text = "$count msg${if (count > 1) "s" else ""}"
 
-        val latestMessage = group.messages.maxByOrNull { it.date }?.body ?: ""
-        holder.tvMessagePreview.text = latestMessage
+            val latestMessage = group.messages.maxByOrNull { it.date }?.body ?: ""
+            holder.tvMessagePreview.text = latestMessage
 
-        // Avoid infinite triggering during recycling
-        holder.switchForward.setOnCheckedChangeListener(null)
-        holder.switchForward.isChecked = group.isEnabled
+            // Avoid infinite triggering during recycling
+            holder.switchForward.setOnCheckedChangeListener(null)
+            holder.switchForward.isChecked = group.isEnabled
 
-        holder.switchForward.setOnCheckedChangeListener { _, isChecked ->
-            group.isEnabled = isChecked
-            onToggleChanged(group, isChecked)
-        }
+            holder.switchForward.setOnCheckedChangeListener { _, isChecked ->
+                try {
+                    group.isEnabled = isChecked
+                    onToggleChanged(group, isChecked)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
 
-        holder.btnViewMessages.setOnClickListener {
-            onViewMessages(group)
-        }
+            holder.btnViewMessages.setOnClickListener {
+                try {
+                    val adapterPos = holder.bindingAdapterPosition
+                    if (adapterPos != RecyclerView.NO_POSITION) {
+                        val currentGroup = senderGroups.getOrNull(adapterPos)
+                        if (currentGroup != null) {
+                            onViewMessages(currentGroup)
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
 
-        holder.btnSendToDb.setOnClickListener {
-            onSendToDb(group)
+            holder.btnSendToDb.setOnClickListener {
+                try {
+                    val adapterPos = holder.bindingAdapterPosition
+                    if (adapterPos != RecyclerView.NO_POSITION) {
+                        val currentGroup = senderGroups.getOrNull(adapterPos)
+                        if (currentGroup != null) {
+                            onSendToDb(currentGroup)
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
