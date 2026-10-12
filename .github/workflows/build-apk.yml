@@ -26,6 +26,10 @@ jobs:
         gradle-version: '8.2'
 
     - name: Build Debug APK
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_API_KEY: ${{ secrets.SUPABASE_KEY }}
+        VENDOR_USER_ID: ${{ secrets.VENDOR_USER_ID }}
       run: gradle assembleDebug
 
     - name: Upload APK Artifact

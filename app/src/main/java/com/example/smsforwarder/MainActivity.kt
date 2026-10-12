@@ -1,9 +1,7 @@
 package com.example.smsforwarder
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -13,7 +11,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -31,10 +28,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvActiveForwarding: TextView
     private lateinit var btnSendSelected: Button
     private lateinit var btnReload: Button
-    private lateinit var btnSettings: Button
     private lateinit var recyclerViewSenders: RecyclerView
 
-    private lateinit var sharedPreferences: SharedPreferences
     private lateinit var smsAdapter: SmsAdapter
 
     private val allSenderGroups = mutableListOf<SenderGroup>()
@@ -42,10 +37,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val PERMISSION_REQUEST_CODE = 123
-        const val PREFS_NAME = "SmsForwarderPrefs"
-        const val KEY_SUPABASE_URL = "supabase_url"
-        const val KEY_API_KEY = "api_key"
-        const val KEY_VENDOR_USER_ID = "vendor_user_id"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,19 +48,17 @@ class MainActivity : AppCompatActivity() {
         tvActiveForwarding = findViewById(R.id.tvActiveForwarding)
         btnSendSelected = findViewById(R.id.btnSendSelected)
         btnReload = findViewById(R.id.btnReload)
-        btnSettings = findViewById(R.id.btnSettings)
         recyclerViewSenders = findViewById(R.id.recyclerViewSenders)
-
-        sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         recyclerViewSenders.layoutManager = LinearLayoutManager(this)
         smsAdapter = SmsAdapter(
             displayedSenderGroups,
             onToggleChanged = { _, _ -> updateActiveCount() },
             onViewMessages = { group ->
-                MessagesActivity.currentMessages = group.messages
-                MessagesActivity.senderName = group.sender
-                startActivity(Intent(this, MessagesActivity::class.java))
+                val intent = Intent(this, MessagesActivity::class.java).apply {
+                    putExtra(MessagesActivity.EXTRA_SENDER, group.sender)
+                }
+                startActivity(intent)
             },
             onSendToDb = { group -> sendGroupToSupabase(group) }
         )
@@ -77,7 +66,6 @@ class MainActivity : AppCompatActivity() {
 
         btnReload.setOnClickListener { loadInboxSms() }
         btnSendSelected.setOnClickListener { sendSelectedToSupabase() }
-        btnSettings.setOnClickListener { showSettingsDialog() }
 
         etSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -167,13 +155,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendGroupToSupabase(group: SenderGroup) {
-        val urlStr = sharedPreferences.getString(KEY_SUPABASE_URL, "")?.takeIf { it.isNotBlank() } ?: BuildConfig.SUPABASE_URL
-        val apiKey = sharedPreferences.getString(KEY_API_KEY, "")?.takeIf { it.isNotBlank() } ?: BuildConfig.SUPABASE_API_KEY
-        val userId = sharedPreferences.getString(KEY_VENDOR_USER_ID, "")?.takeIf { it.isNotBlank() } ?: BuildConfig.VENDOR_USER_ID
+        val urlStr = BuildConfig.SUPABASE_URL
+        val apiKey = BuildConfig.SUPABASE_API_KEY
+        val userId = BuildConfig.VENDOR_USER_ID
 
         if (urlStr.isEmpty() || apiKey.isEmpty()) {
-            Toast.makeText(this, "Please configure Supabase URL & Key", Toast.LENGTH_LONG).show()
-            showSettingsDialog()
+            Toast.makeText(this, "Supabase URL/Key not configured in GitHub Secrets!", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -223,42 +210,5 @@ class MainActivity : AppCompatActivity() {
         for (group in selected) {
             sendGroupToSupabase(group)
         }
-    }
-
-    private fun showSettingsDialog() {
-        val inputUrl = EditText(this).apply {
-            hint = "Supabase Endpoint URL"
-            setText(sharedPreferences.getString(KEY_SUPABASE_URL, BuildConfig.SUPABASE_URL))
-        }
-        val inputKey = EditText(this).apply {
-            hint = "Supabase API Key"
-            setText(sharedPreferences.getString(KEY_API_KEY, BuildConfig.SUPABASE_API_KEY))
-        }
-        val inputUserId = EditText(this).apply {
-            hint = "Vendor User ID (for payment attribution)"
-            setText(sharedPreferences.getString(KEY_VENDOR_USER_ID, BuildConfig.VENDOR_USER_ID))
-        }
-
-        val container = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(48, 32, 48, 16)
-            addView(inputUrl)
-            addView(inputKey)
-            addView(inputUserId)
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Supabase & Vendor Configuration")
-            .setView(container)
-            .setPositiveButton("Save") { _, _ ->
-                sharedPreferences.edit()
-                    .putString(KEY_SUPABASE_URL, inputUrl.text.toString().trim())
-                    .putString(KEY_API_KEY, inputKey.text.toString().trim())
-                    .putString(KEY_VENDOR_USER_ID, inputUserId.text.toString().trim())
-                    .apply()
-                Toast.makeText(this, "Saved!", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
     }
 }
