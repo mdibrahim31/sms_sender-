@@ -14,6 +14,65 @@ class SmsReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "SmsReceiver"
+
+        fun forwardMessage(context: Context, sender: String, messageBody: String) {
+            val sharedPrefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+            val supabaseUrl = sharedPrefs.getString(MainActivity.KEY_SUPABASE_URL, "")?.takeIf { it.isNotBlank() }
+                ?: BuildConfig.SUPABASE_URL
+            val apiKey = sharedPrefs.getString(MainActivity.KEY_API_KEY, "")?.takeIf { it.isNotBlank() }
+                ?: BuildConfig.SUPABASE_API_KEY
+            val userId = sharedPrefs.getString(MainActivity.KEY_VENDOR_USER_ID, "")?.takeIf { it.isNotBlank() }
+                ?: BuildConfig.VENDOR_USER_ID
+
+            if (supabaseUrl.isEmpty() || apiKey.isEmpty()) {
+                Log.w(TAG, "Supabase URL or API Key is not configured.")
+                return
+            }
+
+            thread {
+                var connection: HttpURLConnection? = null
+                try {
+                    val url = URL(supabaseUrl)
+                    connection = (url.openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                        setRequestProperty("apikey", apiKey)
+                        setRequestProperty("Authorization", "Bearer $apiKey")
+                        setRequestProperty("Prefer", "return=minimal")
+                        doOutput = true
+                        connectTimeout = 15000
+                        readTimeout = 15000
+                    }
+
+                    val txnId = SmsParser.extractTxnId(messageBody) ?: ""
+                    val escapedBody = messageBody.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "")
+                    val jsonInputString = """
+                        {
+                            "user_id": "$userId",
+                            "txn_id": "$txnId",
+                            "phone": "$sender",
+                            "full_msg": "$escapedBody"
+                        }
+                    """.trimIndent()
+
+                    OutputStreamWriter(connection.outputStream, "UTF-8").use { writer ->
+                        writer.write(jsonInputString)
+                        writer.flush()
+                    }
+
+                    val responseCode = connection.responseCode
+                    if (responseCode in 200..299) {
+                        Log.i(TAG, "Successfully forwarded SMS to Supabase sms_forwarder. Response code: $responseCode")
+                    } else {
+                        Log.e(TAG, "Failed to forward SMS. Response code: $responseCode")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error forwarding SMS to Supabase", e)
+                } finally {
+                    connection?.disconnect()
+                }
+            }
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -27,51 +86,7 @@ class SmsReceiver : BroadcastReceiver() {
                 }
                 val messageBody = fullBody.toString()
 
-                val sharedPrefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
-                val supabaseUrl = sharedPrefs.getString(MainActivity.KEY_SUPABASE_URL, "")
-                val apiKey = sharedPrefs.getString(MainActivity.KEY_API_KEY, "")
-
-                if (!supabaseUrl.isNullOrEmpty() && !apiKey.isNullOrEmpty()) {
-                    forwardToSupabase(supabaseUrl, apiKey, sender, messageBody)
-                } else {
-                    Log.w(TAG, "Supabase URL or API Key is not configured.")
-                }
-            }
-        }
-    }
-
-    private fun forwardToSupabase(endpointUrl: String, apiKey: String, sender: String, message: String) {
-        thread {
-            var connection: HttpURLConnection? = null
-            try {
-                val url = URL(endpointUrl)
-                connection = (url.openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-                    setRequestProperty("apikey", apiKey)
-                    setRequestProperty("Authorization", "Bearer $apiKey")
-                    doOutput = true
-                    connectTimeout = 15000
-                    readTimeout = 15000
-                }
-
-                val jsonInputString = "{\"sender\":\"$sender\",\"message\":\"$message\"}"
-
-                OutputStreamWriter(connection.outputStream, "UTF-8").use { writer ->
-                    writer.write(jsonInputString)
-                    writer.flush()
-                }
-
-                val responseCode = connection.responseCode
-                if (responseCode in 200..299) {
-                    Log.i(TAG, "Successfully forwarded SMS to Supabase. Response code: $responseCode")
-                } else {
-                    Log.e(TAG, "Failed to forward SMS. Response code: $responseCode")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error forwarding SMS to Supabase", e)
-            } finally {
-                connection?.disconnect()
+                forwardMessage(context, sender, messageBody)
             }
         }
     }

@@ -15,6 +15,15 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // Injected from GitHub Secrets or environment variables at build time
+        def supabaseUrl = System.getenv("SUPABASE_URL") ?: project.findProperty("SUPABASE_URL") ?: ""
+        def supabaseKey = System.getenv("SUPABASE_API_KEY") ?: project.findProperty("SUPABASE_API_KEY") ?: ""
+        def vendorUserId = System.getenv("VENDOR_USER_ID") ?: project.findProperty("VENDOR_USER_ID") ?: "default_vendor"
+
+        buildConfigField "String", "SUPABASE_URL", "\"$supabaseUrl\""
+        buildConfigField "String", "SUPABASE_API_KEY", "\"$supabaseKey\""
+        buildConfigField "String", "VENDOR_USER_ID", "\"$vendorUserId\""
     }
 
     buildTypes {
@@ -30,12 +39,16 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+    buildFeatures {
+        buildConfig true
+    }
 }
 
 dependencies {
     implementation 'androidx.core:core-ktx:1.10.1'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
+    implementation 'androidx.work:work-runtime-ktx:2.8.1'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'

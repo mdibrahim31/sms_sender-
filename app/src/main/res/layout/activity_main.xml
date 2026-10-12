@@ -1,59 +1,151 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp"
-    android:gravity="center_vertical">
+    android:background="@color/background_light"
+    android:padding="16dp">
+
+    <!-- Top Header Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="SMS Forwarder &amp; Service Selector"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary" />
+
+        <Button
+            android:id="@+id/btnReload"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="RELOAD SMS"
+            android:textSize="11sp"
+            android:textColor="@color/text_primary"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="36dp" />
+
+    </LinearLayout>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="SMS Forwarder"
-        android:textSize="28sp"
+        android:text="Supabase Cloud Configured (Build Secret)"
+        android:textSize="13sp"
         android:textStyle="bold"
-        android:gravity="center"
-        android:layout_marginBottom="32dp" />
+        android:textColor="@color/primary_green_dark"
+        android:layout_marginBottom="16dp" />
 
-    <TextView
+    <!-- Available Services Card Container -->
+    <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Supabase Endpoint URL"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="2dp"
+        app:cardBackgroundColor="@color/card_background"
+        app:contentPadding="16dp">
 
-    <EditText
-        android:id="@+id/etSupabaseUrl"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="https://your-project.supabase.co/rest/v1/sms"
-        android:inputType="textUri"
-        android:minHeight="48dp"
-        android:layout_marginBottom="20dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Supabase API Key (Anon / Service Role)"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
+            <TextView
+                android:id="@+id/tvAvailableServices"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Available Services (0)"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary"
+                android:layout_marginBottom="12dp" />
 
-    <EditText
-        android:id="@+id/etApiKey"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="eyJhbGciOiJIUzI1Ni..."
-        android:inputType="textPassword"
-        android:minHeight="48dp"
-        android:layout_marginBottom="32dp" />
+            <!-- Search Bar -->
+            <EditText
+                android:id="@+id/etSearch"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_search"
+                android:drawableStart="@android:drawable/ic_menu_search"
+                android:drawablePadding="12dp"
+                android:hint="Search sender / প্রেরক খুঁজুন (e.g. bKash, NAG...)"
+                android:textSize="14sp"
+                android:paddingHorizontal="16dp"
+                android:inputType="text"
+                android:layout_marginBottom="12dp" />
 
+            <!-- Active forwarding status & Batch Send Button -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="12dp">
+
+                <TextView
+                    android:id="@+id/tvActiveForwarding"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Forwarding: 0 of 0 services active"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/primary_green_dark" />
+
+                <Button
+                    android:id="@+id/btnSendSelected"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SEND SELECTED TO DB"
+                    android:textSize="11sp"
+                    android:backgroundTint="@color/primary_green"
+                    android:textColor="@android:color/white"
+                    android:minHeight="36dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp" />
+
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider_color"
+                android:layout_marginBottom="12dp" />
+
+            <!-- RecyclerView of sender cards -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerViewSenders"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false" />
+
+        </LinearLayout>
+
+    </androidx.cardview.widget.CardView>
+
+    <!-- Settings / Supabase config toggle button at bottom -->
     <Button
-        android:id="@+id/btnSave"
+        android:id="@+id/btnSettings"
+        style="?attr/materialButtonOutlinedStyle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Save Configuration"
-        android:minHeight="48dp" />
+        android:text="Configure Supabase URL &amp; Key"
+        android:textSize="12sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginTop="12dp"
+        android:minHeight="40dp" />
 
 </LinearLayout>
